@@ -1,27 +1,32 @@
 name: build-containers
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
 on:
   push:
-    branches:
-      - master
+    # Publish semver tags as releases.
+    tags: [ '*' ]
 
 jobs:
   vultr-exporter:
     name: updown-exporter
     runs-on: ubuntu-latest
     env:
-      REPO: dazwilkin/updown-exporter
+      REPO: bilyboy785/updown-exporter
     steps:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Setup
         uses: docker/setup-buildx-action@v2
-      - name: Login
-        uses: docker/login-action@v2
+      - name: Log into registry ${{ env.REGISTRY }}
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@28218f9b04b4f3f62068d7b6ce6ca5b26e35336c
         with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GHCR }}
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Get kernel version
         run: echo "VERSION=$(uname --kernel-release)" >> ${GITHUB_ENV}
       - name: Exporter
@@ -34,35 +39,20 @@ jobs:
             VERSION=${{ env.VERSION }}
             COMMIT=${{ github.sha }}
           tags: ghcr.io/${{ env.REPO }}:${{ github.sha }}
-          push: true
-      # - name: Cosign installer
-      #   uses: sigstore/cosign-installer@main
-      # - name: Write signing key to disk (only needed for `cosign sign --key`)
-      #   run: echo "${{ secrets.SIGNING }}" > ./cosign.key
-      # - name: Sign container image
+          push: true       
+      # - name: Revise occurrences of the image
       #   run: |
-      #     cosign sign \
-      #     --key=./cosign.key \
-      #     --annotations="repo=${{ github.repository }}" \
-      #     --annotations="workflow=${{ github.workflow }}" \
-      #     --annotations="commit=${{ github.sha }}" \
-      #     --annotations="version=${{ env.VERSION }}" \
-      #     ghcr.io/${{ env.REPO }}:${{ github.sha }}
-      #   env:
-      #     COSIGN_PASSWORD: ""          
-      - name: Revise occurrences of the image
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Actions"
+      #     git config --local user.email "action@github.com"
+      #     git config --local user.name "GitHub Actions"
 
-          for FILENAME in "./README.md"
-          do
-            echo "Replacing: ${REPO}"
-            sed \
-            --in-place \
-            "s|${{ env.REPO }}:[0-9a-f]\{40\}|${{ env.REPO }}:${{ github.sha }}|g" \
-            ${FILENAME}
-            git add ${FILENAME}
-          done
-          git commit --message "GitHub Actions update image references"
-          git push origin master
+      #     for FILENAME in "./README.md"
+      #     do
+      #       echo "Replacing: ${REPO}"
+      #       sed \
+      #       --in-place \
+      #       "s|${{ env.REPO }}:[0-9a-f]\{40\}|${{ env.REPO }}:${{ github.sha }}|g" \
+      #       ${FILENAME}
+      #       git add ${FILENAME}
+      #     done
+      #     git commit --message "GitHub Actions update image references"
+      #     git push origin master
